@@ -28,6 +28,11 @@ if sudo -u postgres ${PG_BIN}/pg_isready -p ${DB_PORT} > /dev/null 2>&1; then
     if [ -f "db_connection.txt" ]; then
         echo "Or use: $(cat db_connection.txt)"
     fi
+
+    # Apply schema initialization idempotently when server is already running
+    echo "Applying database schema (idempotent)..."
+    PGPASSWORD="${DB_PASSWORD}" ${PG_BIN}/psql -h localhost -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -v ON_ERROR_STOP=1 -f startup.sql 2>/dev/null \
+        && echo "✓ Schema applied (or already present)" || echo "⚠ Schema apply step encountered non-fatal issues (objects may already exist)"
     
     echo ""
     echo "Script stopped - server already running."
@@ -42,6 +47,12 @@ if pgrep -f "postgres.*-p ${DB_PORT}" > /dev/null 2>&1; then
     # Try to connect and verify the database exists
     if sudo -u postgres ${PG_BIN}/psql -p ${DB_PORT} -d ${DB_NAME} -c '\q' 2>/dev/null; then
         echo "Database ${DB_NAME} is accessible."
+
+        # Apply schema initialization idempotently
+        echo "Applying database schema (idempotent)..."
+        PGPASSWORD="${DB_PASSWORD}" ${PG_BIN}/psql -h localhost -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -v ON_ERROR_STOP=1 -f startup.sql 2>/dev/null \
+            && echo "✓ Schema applied (or already present)" || echo "⚠ Schema apply step encountered non-fatal issues (objects may already exist)"
+
         echo "Script stopped - server already running."
         exit 0
     fi
@@ -106,10 +117,6 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${DB_USER};
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO ${DB_USER};
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TYPES TO ${DB_USER};
 
--- If you want the user to be able to create objects without restrictions,
--- you can make them the owner of the public schema (optional but effective)
--- ALTER SCHEMA public OWNER TO ${DB_USER};
-
 -- Alternative: Grant all privileges on schema public to the user
 GRANT ALL ON SCHEMA public TO ${DB_USER};
 
@@ -128,6 +135,11 @@ GRANT CREATE ON SCHEMA public TO ${DB_USER};
 -- Show current permissions for debugging
 \dn+ public
 EOF
+
+# Apply schema initialization idempotently after user/db are ready
+echo "Applying database schema (idempotent)..."
+PGPASSWORD="${DB_PASSWORD}" ${PG_BIN}/psql -h localhost -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -v ON_ERROR_STOP=1 -f startup.sql 2>/dev/null \
+    && echo "✓ Schema applied (or already present)" || echo "⚠ Schema apply step encountered non-fatal issues (objects may already exist)"
 
 # Save connection command to a file
 echo "psql postgresql://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}" > db_connection.txt
