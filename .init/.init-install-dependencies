@@ -1,0 +1,4 @@
+{
+    "command": "cd db_visualizer && npm install",
+    "working_directory": "/home/kavia/workspace/code-generation/fullstack-todo-application-40750-40760/database_postgresql"
+}
